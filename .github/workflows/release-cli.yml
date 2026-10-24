@@ -1,0 +1,107 @@
+name: Release Zen CLI
+
+# Build the Go core for every platform, attach binaries to a GitHub Release
+# (tag: zen-cli-v*), and publish checksums.json for the npm wrapper.
+#
+# Usage:
+#   git tag zen-cli-v1.0.0 && git push origin zen-cli-v1.0.0
+#
+# Optional: also publish the npm wrapper — add repo secrets NPM_TOKEN and
+# flip `npm_publish` input on dispatch.
+
+on:
+  push:
+    tags: ["zen-cli-v*"]
+  workflow_dispatch:
+    inputs:
+      npm_publish:
+        description: "Also publish zen-cli to npm"
+        required: false
+        default: "false"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - { goos: linux, goarch: amd64 }
+          - { goos: linux, goarch: arm64 }
+          - { goos: darwin, goarch: amd64 }
+          - { goos: darwin, goarch: arm64 }
+          - { goos: windows, goarch: amd64, ext: .exe }
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.23"
+
+      - name: Build
+        working-directory: cli/core
+        env:
+          CGO_ENABLED: 0
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#zen-cli-v}"
+          go build -trimpath -ldflags "-s -w" \
+            -o "../dist/zen-cli-v${VERSION}-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}" .
+
+      - name: Package
+        working-directory: cli/dist
+        run: |
+          VERSION="${GITHUB_REF_NAME#zen-cli-v}"
+          NAME="zen-cli-v${VERSION}-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}"
+          tar -czf "zen-cli-v${VERSION}-${{ matrix.goos }}-${{ matrix.goarch }}.tar.gz" "${NAME}"
+          rm -f "${NAME}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: zen-cli-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: cli/dist/*.tar.gz
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: cli/dist
+          merge-multiple: true
+
+      - name: Generate checksums
+        working-directory: cli/dist
+        run: |
+          sha256sum *.tar.gz | awk '{gsub(/\*/,""); print}' > checksums-raw.txt
+          node -e '
+            const fs = require("fs");
+            const out = {};
+            for (const line of fs.readFileSync("checksums-raw.txt", "utf8").trim().split("\n")) {
+              const [h, f] = line.split(/\s+/);
+              out[f] = h;
+            }
+            fs.writeFileSync("../npm/checksums.json", JSON.stringify(out, null, 2) + "\n");
+          '
+          cp ../npm/checksums.json .
+
+      - name: Attach to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            cli/dist/*.tar.gz
+            cli/dist/checksums.json
+          generate_release_notes: true
+
+      - name: Publish npm (optional)
+        if: ${{ inputs.npm_publish == 'true' }}
+        working-directory: cli/npm
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          npm publish --access public

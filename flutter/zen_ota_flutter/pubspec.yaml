@@ -1,0 +1,30 @@
+name: zen_ota_flutter
+description: >-
+  Zen OTA for Flutter — self-hosted in-app auto-updates for Android, backed by
+  your own GitHub repo. Publish an APK with the Zen CLI and every user's app
+  updates itself: open, close, open — new version. Silent installs on
+  device-owner devices, one-tap confirm otherwise.
+version: 1.0.0
+homepage: https://github.com/YOUR_USERNAME/zen-ota
+repository: https://github.com/YOUR_USERNAME/zen-ota
+issue_tracker: https://github.com/YOUR_USERNAME/zen-ota/issues
+
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+  flutter: ">=3.3.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  plugin:
+    platforms:
+      android:
+        package: ota.zen.flutter
+        pluginClass: ZenOtaPlugin

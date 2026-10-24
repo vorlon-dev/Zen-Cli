@@ -1,0 +1,15 @@
+{
+  "functions": {
+    "api/**/*.ts": {
+      "memory": 256,
+      "maxDuration": 30
+    }
+  },
+  "rewrites": [
+    { "source": "/check", "destination": "/api/check" },
+    { "source": "/download", "destination": "/api/download" },
+    { "source": "/event", "destination": "/api/event" },
+    { "source": "/health", "destination": "/api/health" },
+    { "source": "/api/admin/manifest", "destination": "/api/admin-manifest" }
+  ]
+}
